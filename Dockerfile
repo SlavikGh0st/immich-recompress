@@ -29,6 +29,9 @@ FROM python:3.12-slim AS handbrake-build
 
 ARG HANDBRAKE_VERSION=1.11.2
 ARG HANDBRAKE_SHA256=12b046350f2422dc28783ff94229aff4ba5fe5e683431e057355d36163b2593a
+# HandBrake's C/C++ build can use substantial memory per compiler job. Keep the
+# default low so multi-platform Buildx builds don't exhaust runner memory.
+ARG HANDBRAKE_BUILD_JOBS=2
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -37,7 +40,7 @@ RUN apt-get update \
         libharfbuzz-dev libjansson-dev liblzma-dev libmp3lame-dev libnuma-dev \
         libogg-dev libopus-dev libsamplerate0-dev libspeex-dev libtheora-dev \
         libtool libtool-bin libturbojpeg0-dev libvorbis-dev \
-        libvpx-dev libxml2-dev m4 make meson nasm ninja-build patch pkg-config \
+        libvpx-dev libx264-dev libxml2-dev m4 make meson nasm ninja-build patch pkg-config \
         python3 tar zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -45,8 +48,8 @@ WORKDIR /tmp/handbrake-src
 RUN curl -fsSLO "https://github.com/HandBrake/HandBrake/releases/download/${HANDBRAKE_VERSION}/HandBrake-${HANDBRAKE_VERSION}-source.tar.bz2" \
     && echo "${HANDBRAKE_SHA256}  HandBrake-${HANDBRAKE_VERSION}-source.tar.bz2" | sha256sum -c - \
     && tar -xjf "HandBrake-${HANDBRAKE_VERSION}-source.tar.bz2" --strip-components=1 \
-    && ./configure --disable-gtk --launch-jobs="$(nproc)" --launch \
-    && make --directory=build --jobs="$(nproc)" \
+    && ./configure --disable-gtk --launch-jobs="${HANDBRAKE_BUILD_JOBS}" \
+    && make --directory=build --jobs="${HANDBRAKE_BUILD_JOBS}" \
     && make --directory=build install
 
 

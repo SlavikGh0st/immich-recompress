@@ -35,9 +35,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          # Feature-branch workflow_dispatch builds target the x86_64 test server.
-          # Keep multi-arch images for main and versioned releases.
-          platforms: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

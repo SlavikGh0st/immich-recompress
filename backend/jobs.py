@@ -23,8 +23,8 @@ from backend.state import (
 )
 from backend.db import db_load_jobs, db_save_job
 from backend.media import (
-    append_csv_log, build_ffmpeg_image_cmd, build_handbrake_cmd, ffprobe_info,
-    has_free_space,
+    append_csv_log, build_ffmpeg_image_cmd, build_video_encoder_cmd,
+    ffprobe_info, has_free_space,
 )
 from backend.immich_api import (
     asset_codec, copy_asset_metadata, copy_asset_tags, download_original,
@@ -271,6 +271,60 @@ def run_handbrake(cmd, asset_id, source_duration):
     unregister_proc(asset_id)
     emit_job_update(asset_id)
     return proc.returncode == 0
+
+
+_FFMPEG_TIME_RE = re.compile(r"\btime=(\d+):(\d+):(\d+(?:\.\d+)?)")
+
+
+def run_ffmpeg_video(cmd, asset_id, source_duration):
+    """Run FFmpeg VAAPI video encoding and update progress from its time stats."""
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, bufsize=0)
+    except (OSError, ValueError):
+        update_job(asset_id, log="Failed to start FFmpeg")
+        emit_job_update(asset_id)
+        return False
+    register_proc(asset_id, proc)
+
+    last_emit = 0.0
+    buf = ""
+    while True:
+        ch = proc.stdout.read(1)
+        if not ch:
+            break
+        if ch in ("\r", "\n"):
+            line = buf.strip()
+            buf = ""
+            if not line:
+                continue
+            changes = {"log": line}
+            match = _FFMPEG_TIME_RE.search(line)
+            if match and source_duration and source_duration > 0:
+                hours, minutes, seconds = match.groups()
+                elapsed = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+                changes["progress"] = round(min(99.9, elapsed / source_duration * 100), 1)
+            update_job(asset_id, **changes)
+            now = time.time()
+            if now - last_emit > 0.5:
+                emit_job_update(asset_id)
+                last_emit = now
+        else:
+            buf += ch
+
+    if buf.strip():
+        update_job(asset_id, log=buf.strip())
+    proc.wait()
+    unregister_proc(asset_id)
+    emit_job_update(asset_id)
+    return proc.returncode == 0
+
+
+def run_video_encoder(cmd, asset_id, source_duration):
+    """Dispatch to the selected video encoder backend."""
+    if cmd and cmd[0] == "ffmpeg":
+        return run_ffmpeg_video(cmd, asset_id, source_duration)
+    return run_handbrake(cmd, asset_id, source_duration)
 
 
 def cleanup_temp(*paths):
@@ -848,14 +902,17 @@ def process_motionphoto_job(env, asset_id, params):
         _, src_duration = ffprobe_info(src_path)
         update_job(asset_id, status="encoding", progress=0.0, log="Compressing motion video")
         emit_job_update(asset_id)
-        cmd = build_handbrake_cmd(src_path, out_path, params.get("encoder", "x265"),
-                                  params.get("quality", 24), params.get("preset", "medium"),
-                                  params.get("resolution", "original"), params.get("threads"))
-        ok = run_handbrake(cmd, asset_id, src_duration)
+        cmd = build_video_encoder_cmd(
+            src_path, out_path, params.get("encoder", "x265"),
+            params.get("quality", 24), params.get("preset", "medium"),
+            params.get("resolution", "original"), params.get("threads"),
+        )
+        ok = run_video_encoder(cmd, asset_id, src_duration)
         if not ok or not os.path.isfile(out_path):
             cancelled = is_cancelled(asset_id)
             update_job(asset_id, status="cancelled" if cancelled else "error",
-                       log="Cancelled" if cancelled else "HandBrake error")
+                       log="Cancelled" if cancelled else
+                           ("FFmpeg error" if cmd[0] == "ffmpeg" else "HandBrake error"))
             emit_job_update(asset_id)
             append_csv_log([utcnow_iso(), asset_id, name, "MOTION", video_size, None, None,
                             "cancelled" if cancelled else "error"])
@@ -1022,14 +1079,17 @@ def process_job(asset_id):
     update_job(asset_id, status="encoding", progress=0.0, log="Encoding")
     emit_job_update(asset_id)
 
-    cmd = build_handbrake_cmd(src_path, out_path, params.get("encoder", "x265"),
-                              params.get("quality", 24), params.get("preset", "medium"),
-                              params.get("resolution", "original"), params.get("threads"))
-    ok = run_handbrake(cmd, asset_id, src_duration)
+    cmd = build_video_encoder_cmd(
+        src_path, out_path, params.get("encoder", "x265"),
+        params.get("quality", 24), params.get("preset", "medium"),
+        params.get("resolution", "original"), params.get("threads"),
+    )
+    ok = run_video_encoder(cmd, asset_id, src_duration)
     if not ok or not os.path.isfile(out_path):
         cancelled = is_cancelled(asset_id)
         update_job(asset_id, status="cancelled" if cancelled else "error",
-                   log="Cancelled" if cancelled else "HandBrake error")
+                   log="Cancelled" if cancelled else
+                       ("FFmpeg error" if cmd[0] == "ffmpeg" else "HandBrake error"))
         emit_job_update(asset_id)
         append_csv_log([utcnow_iso(), asset_id, name, src_codec or "",
                         old_size, None, None, "cancelled" if cancelled else "error"])

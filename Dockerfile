@@ -57,6 +57,7 @@ RUN curl -fsSLO "https://github.com/HandBrake/HandBrake/releases/download/${HAND
 # Stage 3 — Python runtime with media tooling
 # --------------------------------------------------------------------------- #
 FROM python:3.12-slim AS runtime
+ARG TARGETARCH
 
 # ffmpeg/ffprobe (photo recompression + codec probing) and timezone data.
 # HandBrakeCLI is built from the pinned upstream release above because distro
@@ -69,6 +70,10 @@ RUN apt-get update \
         libjansson4 \
         libturbojpeg0 \
         tzdata \
+    && if [ "${TARGETARCH}" = "amd64" ]; then \
+        apt-get install -y --no-install-recommends \
+            intel-media-va-driver libdrm2 libva-drm2 libva2; \
+    fi \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

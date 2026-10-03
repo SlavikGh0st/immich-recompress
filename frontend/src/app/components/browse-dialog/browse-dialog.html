@@ -29,7 +29,7 @@
               [ngModel]="localVideoGb()" (ngModelChange)="localVideoGb.set(+$event)" />
           </div>
         </div>
-        <p class="hint">Videos are re-encoded with HandBrakeCLI.</p>
+        <p class="hint">Videos are re-encoded with the selected HandBrake or FFmpeg encoder.</p>
       } @else if (localTab() === 'image' || localTab() === 'motionphoto') {
         <div class="field">
           <label>{{ localTab() === 'motionphoto' ? 'Motion Video Threshold' : 'Photo Threshold' }}: {{ localPhotoMb() }} MB</label>

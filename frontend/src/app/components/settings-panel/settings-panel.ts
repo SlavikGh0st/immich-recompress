@@ -38,8 +38,7 @@ export class SettingsPanelComponent {
   /** Effective CPU-core count (0/unset = all detected cores). */
   get cores(): number { return this.s.threads || this.store.cpuCount(); }
 
-  /** Plain-language quality band, honouring the encoder's direction (RF-style
-   *  lower-is-better vs VideoToolbox 0–100 higher-is-better). */
+  /** Plain-language quality band, honouring the encoder's quality direction. */
   qualityLabel(q: number): string {
     if (this.enc?.qbetter === 'high') {
       if (q >= 75) return 'near-lossless, large files';
@@ -58,8 +57,7 @@ export class SettingsPanelComponent {
   // --- brief summary shown in the sidebar card ---
   get videoSummary(): string {
     const label = this.enc?.label ?? this.s.encoder;
-    const term = this.enc?.qbetter === 'high' ? 'CQ' : 'RF';
-    return `${label} · ${term} ${this.s.quality}`;
+    return `${label} · quality ${this.s.quality}`;
   }
 
   get outputSummary(): string {

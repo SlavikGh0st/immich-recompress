@@ -32,12 +32,12 @@
               <option [value]="s.encoder">{{ s.encoder }}</option>
             }
           </select>
-          <small>Hardware (GPU) encoders are listed only when the running HandBrake
-            build supports them — they're far faster and barely touch the CPU.</small>
+          <small>Hardware encoders appear when the installed HandBrake or FFmpeg build
+            and a mapped GPU device support them.</small>
         </div>
 
         <div class="field">
-          <label>Quality ({{ enc?.qbetter === 'high' ? 'CQ' : 'RF' }}): {{ s.quality }} · {{ qualityLabel(s.quality) }}</label>
+          <label>Quality: {{ s.quality }} · {{ qualityLabel(s.quality) }}</label>
           <div class="rangewrap">
             <input type="range" [min]="enc?.qmin ?? 18" [max]="enc?.qmax ?? 32"
               [ngModel]="s.quality" (ngModelChange)="update({quality: +$event})" />
@@ -49,9 +49,9 @@
               <strong>Higher = better quality &amp; bigger files; lower = smaller files.</strong>
               ~55–65 is a good balance.</small>
           } @else {
-            <small>Constant-quality target for the encoder (HandBrake's RF, like CRF).
+            <small>Constant-quality target for the selected encoder.
               <strong>Lower = better quality &amp; bigger files; higher = smaller files &amp; lower quality.</strong>
-              Roughly each +6 halves the size. 18 ≈ near-lossless, ~22–26 is the sweet spot, 32 is small but visibly soft.</small>
+              The meaning of each value depends on the encoder; roughly 22–26 is a good starting range.</small>
           }
         </div>
 

@@ -202,9 +202,11 @@ def api_status():
 
 @bp.route("/api/capabilities")
 def api_capabilities():
-    """Video encoders the running HandBrake build supports, plus the CPU-core
-    preflight max. Static for the process lifetime; the UI fetches it once to
-    populate the encoder dropdown and cap the CPU-cores control."""
+    """Video encoders supported by HandBrake/FFmpeg plus the CPU-core limit.
+
+    Capabilities are static for the process lifetime; the UI fetches them once
+    to populate the encoder dropdown and cap the CPU-cores control.
+    """
     return jsonify({
         "encoders": available_encoders(),
         "cpu_count": cpu_count(),

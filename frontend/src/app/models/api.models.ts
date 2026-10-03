@@ -169,7 +169,7 @@ export interface Settings {
   confirm: boolean;
 }
 
-/** One encoder the running HandBrake build supports (from /api/capabilities). */
+/** One video encoder supported by the running HandBrake/FFmpeg build. */
 export interface EncoderInfo {
   id: string;
   label: string;
@@ -177,7 +177,7 @@ export interface EncoderInfo {
   qmin: number;
   qmax: number;
   qdefault: number;
-  /** Quality direction: 'low' = lower is better (RF/CRF), 'high' = higher is better (VideoToolbox). */
+  /** Quality direction: 'low' = lower is better, 'high' = higher is better. */
   qbetter: 'low' | 'high';
   /** Whether a CPU-core count can be set for this (software) encoder. */
   cores: boolean;

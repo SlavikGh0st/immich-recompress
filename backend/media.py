@@ -4,6 +4,7 @@ Holds no job state.
 """
 import csv
 import functools
+import glob
 import json
 import os
 import shutil
@@ -62,9 +63,9 @@ RESOLUTION_LONG_EDGE = {
 }
 
 
-# Encoder catalog. Each friendly `id` maps to a HandBrake `-e` name (`hb`), a
-# display `label`, whether it's hardware-accelerated (`hw`), a quality spec and
-# (software encoders only) the encoder option used to cap the CPU thread count.
+# Encoder catalog. A friendly `id` maps to a HandBrake `-e` name (`hb`) or an
+# FFmpeg encoder, a display `label`, whether it's hardware-accelerated (`hw`),
+# a quality spec and (software encoders only) the thread-count option.
 #
 # Quality scales differ per encoder, so the UI reads min/max/default and the
 # `qbetter` direction from here:
@@ -89,7 +90,8 @@ ENCODER_CATALOG = [
     {"id": "qsv_h265",   "hb": "qsv_h265",   "label": "HEVC (Intel QSV)",
      "hw": True,  "qmin": 18, "qmax": 40, "qdefault": 24, "qbetter": "low",  "threadopt": None},
     {"id": "vaapi_h265", "hb": "vaapi_h265", "label": "HEVC (VAAPI)",
-     "hw": True,  "qmin": 18, "qmax": 40, "qdefault": 24, "qbetter": "low",  "threadopt": None},
+     "ffmpeg_encoder": "hevc_vaapi", "hw": True, "qmin": 18, "qmax": 40,
+     "qdefault": 24, "qbetter": "low", "threadopt": None},
     {"id": "vce_h265",   "hb": "vce_h265",   "label": "HEVC (AMD VCE)",
      "hw": True,  "qmin": 18, "qmax": 40, "qdefault": 24, "qbetter": "low",  "threadopt": None},
 ]
@@ -133,14 +135,46 @@ def _handbrake_encoder_names():
     return frozenset(names)
 
 
+@functools.lru_cache(maxsize=1)
+def _ffmpeg_encoder_names():
+    """Return video encoder names reported by the installed FFmpeg build."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return frozenset()
+    try:
+        out = subprocess.run(
+            [ffmpeg, "-hide_banner", "-encoders"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return frozenset()
+    text = (out.stdout or "") + "\n" + (out.stderr or "")
+    names = set()
+    for line in text.splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and len(fields[0]) == 6 and fields[0].startswith("V"):
+            names.add(fields[1])
+    return frozenset(names)
+
+
+def ffmpeg_vaapi_available():
+    """Whether FFmpeg has HEVC VAAPI encoding and a render node is mapped in."""
+    return ("hevc_vaapi" in _ffmpeg_encoder_names()
+            and bool(glob.glob("/dev/dri/renderD*")))
+
+
 def available_encoders():
-    """Catalog entries (UI-facing fields) the running HandBrake build supports."""
-    names = _handbrake_encoder_names()
+    """Catalog entries supported by HandBrake or the FFmpeg VAAPI backend."""
+    handbrake_names = _handbrake_encoder_names()
+    ffmpeg_names = _ffmpeg_encoder_names()
+    vaapi_device = bool(glob.glob("/dev/dri/renderD*"))
     return [
         {"id": e["id"], "label": e["label"], "hw": e["hw"],
          "qmin": e["qmin"], "qmax": e["qmax"], "qdefault": e["qdefault"],
          "qbetter": e["qbetter"], "cores": bool(e["threadopt"])}
-        for e in ENCODER_CATALOG if e["hb"] in names
+        for e in ENCODER_CATALOG
+        if (e.get("hb") in handbrake_names
+            or (e.get("ffmpeg_encoder") in ffmpeg_names and vaapi_device))
     ]
 
 
@@ -172,6 +206,39 @@ def build_handbrake_cmd(src, out, encoder, quality, preset, resolution="original
         cmd += ["--maxWidth", str(edge), "--maxHeight", str(edge)]
     cmd += ["--keep-metadata", "--optimize"]
     return cmd
+
+
+def build_ffmpeg_vaapi_cmd(src, out, quality, resolution="original"):
+    """Build an FFmpeg command to encode HEVC through VAAPI."""
+    filters = []
+    edge = RESOLUTION_LONG_EDGE.get(str(resolution))
+    if edge:
+        # Limit the long edge without upscaling, preserve aspect ratio and keep
+        # dimensions even for the NV12 hardware upload.
+        filters.append(
+            f"scale=w='min(iw,{edge})':h='min(ih,{edge})':"
+            "force_original_aspect_ratio=decrease:force_divisible_by=2"
+        )
+    filters.extend(("format=nv12", "hwupload"))
+    return [
+        "ffmpeg", "-hide_banner", "-y",
+        "-vaapi_device", sorted(glob.glob("/dev/dri/renderD*"))[0],
+        "-i", src,
+        "-map", "0:v:0", "-map", "0:a?",
+        "-map_metadata", "0", "-map_chapters", "0",
+        "-vf", ",".join(filters),
+        "-c:v", "hevc_vaapi", "-qp", str(quality),
+        "-c:a", "copy", "-movflags", "+faststart", out,
+    ]
+
+
+def build_video_encoder_cmd(src, out, encoder, quality, preset,
+                            resolution="original", threads=None):
+    """Build the command for a selected video encoder/backend."""
+    spec = encoder_spec(encoder)
+    if spec.get("ffmpeg_encoder") == "hevc_vaapi" and ffmpeg_vaapi_available():
+        return build_ffmpeg_vaapi_cmd(src, out, quality, resolution)
+    return build_handbrake_cmd(src, out, encoder, quality, preset, resolution, threads)
 
 
 def build_ffmpeg_image_cmd(src, out, quality):

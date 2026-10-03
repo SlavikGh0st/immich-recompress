@@ -74,12 +74,10 @@ export class ReviewModalComponent {
     return `${from} → ${this.store.encoderLabel(j.encoder)} · .mp4`;
   }
 
-  /** Encoder summary line: friendly label, quality (RF or CQ), and preset for
-   *  software encoders only (hardware encoders don't use HandBrake presets). */
+  /** Encoder summary line, with preset for software encoders only. */
   encoderDetail(j: JobPublic): string {
     const e = this.store.encoders().find(x => x.id === j.encoder);
-    const term = e?.qbetter === 'high' ? 'CQ' : 'RF';
-    const head = `${this.store.encoderLabel(j.encoder)} · ${term} ${j.quality}`;
+    const head = `${this.store.encoderLabel(j.encoder)} · quality ${j.quality}`;
     return (!e || !e.hw) ? `${head} · ${j.preset}` : head;
   }
 

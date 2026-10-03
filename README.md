@@ -2,8 +2,9 @@
 
 Browse, inspect and **recompress** the videos and photos in your
 [Immich](https://immich.app/) library to reclaim storage, all from a small web
-dashboard. Re-encode videos with HandBrake, recompress JPEGs with ffmpeg, or
-strip the motion clip from Live Photos, with a review-before-replace step and
+dashboard. Re-encode videos with HandBrake or FFmpeg VAAPI, recompress JPEGs
+with ffmpeg, and strip the motion clip from Live Photos, with a review-before-
+replace step and
 live progress.
 
 ## Screenshots
@@ -15,7 +16,8 @@ live progress.
 ## Features
 
 - Browse videos, photos or Live Photos, filtered by size and capture date.
-- Re-encode videos (HandBrake: x264 / x265 / AV1, optional resolution cap).
+- Re-encode videos (HandBrake: x264 / x265 / AV1; FFmpeg: VAAPI HEVC), with an
+  optional resolution cap.
 - Hardware (GPU) encoding when available, auto-detected at runtime, plus a
   selectable CPU-core count. See [Hardware acceleration](#hardware-acceleration).
 - Recompress JPEGs to a target size (ffmpeg, with a macOS `sips` fallback);
@@ -138,26 +140,27 @@ Set in `.env` (see [`.env.example`](.env.example)):
 
 ## Hardware acceleration
 
-The encoder dropdown is detected at runtime from your `HandBrakeCLI` build, so
-you only see options that work. Hardware encoders are far faster and barely touch
-the CPU; software encoders compress best and expose a **CPU cores** slider
+The encoder dropdown is detected at runtime from your `HandBrakeCLI` and `ffmpeg`
+builds, so you only see options available in the container. Hardware encoders use
+the GPU; software encoders expose a **CPU cores** slider
 (defaults to all cores. Lower it to keep the machine responsive).
 
 | Platform | Hardware encoder | How to enable |
 | -------- | ---------------- | ------------- |
 | macOS | Apple VideoToolbox | Works out of the box. |
-| Linux + Intel/AMD | QSV / VAAPI | Pass `/dev/dri` (below) + a HandBrake build with QSV/VAAPI. |
+| Linux + Intel (amd64) | VAAPI | Uses FFmpeg HEVC VAAPI. Pass `/dev/dri` (below); the image includes the Intel media driver. |
+| Linux + AMD | VAAPI | Requires a compatible VAAPI driver in the container and `/dev/dri` passthrough. |
 | Linux + NVIDIA | NVENC | [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) + GPU reservation (below) + a HandBrake build with NVENC. |
 
-> **Docker:** the stock image's Debian `handbrake-cli` has **no** GPU encoders, so
-> only CPU encoders appear. NVENC/QSV need a HandBrake build that includes them.
-> The passthrough wiring below (and in `docker-compose.yml`) is ready for one.
+> **Docker:** the `linux/amd64` image includes Intel VAAPI HEVC encoding through
+> FFmpeg. Pass `/dev/dri` into the container to use it. Other GPU encoders depend
+> on the relevant runtime and build support.
 
 ```yaml
 services:
   immich-recompress:
     devices:
-      - /dev/dri:/dev/dri          # Intel/AMD (QSV / VAAPI)
+      - /dev/dri:/dev/dri          # Intel/AMD VAAPI
     deploy:                         # NVIDIA NVENC (needs the Container Toolkit)
       resources:
         reservations:

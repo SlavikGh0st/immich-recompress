@@ -87,7 +87,8 @@ ENCODER_CATALOG = [
     {"id": "nvenc_h265", "hb": "nvenc_h265", "label": "HEVC (NVIDIA NVENC)",
      "hw": True,  "qmin": 18, "qmax": 40, "qdefault": 24, "qbetter": "low",  "threadopt": None},
     {"id": "qsv_h265",   "hb": "qsv_h265",   "label": "HEVC (Intel QSV)",
-     "hw": True,  "qmin": 18, "qmax": 40, "qdefault": 24, "qbetter": "low",  "threadopt": None},
+     "hw": True,  "qmin": 18, "qmax": 40, "qdefault": 24, "qbetter": "low",
+     "threadopt": None, "encopts": "lowpower=1"},
     {"id": "vaapi_h265", "hb": "vaapi_h265", "label": "HEVC (VAAPI)",
      "hw": True,  "qmin": 18, "qmax": 40, "qdefault": 24, "qbetter": "low",  "threadopt": None},
     {"id": "vce_h265",   "hb": "vce_h265",   "label": "HEVC (AMD VCE)",
@@ -167,6 +168,8 @@ def build_handbrake_cmd(src, out, encoder, quality, preset, resolution="original
         cmd += ["--encoder-preset", str(preset)]
     if not spec["hw"] and spec["threadopt"] and threads:
         cmd += ["--encopts", f"{spec['threadopt']}={int(threads)}"]
+    elif spec.get("encopts"):
+        cmd += ["--encopts", spec["encopts"]]
     edge = RESOLUTION_LONG_EDGE.get(str(resolution))
     if edge:
         cmd += ["--maxWidth", str(edge), "--maxHeight", str(edge)]

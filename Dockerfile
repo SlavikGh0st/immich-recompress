@@ -67,6 +67,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ffmpeg \
         libjansson4 \
+        libturbojpeg0 \
         tzdata \
     && rm -rf /var/lib/apt/lists/*
 

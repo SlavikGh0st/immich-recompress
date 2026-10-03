@@ -19,12 +19,11 @@ services:
       # internet. To expose it, put it behind an authenticating reverse proxy and
       # only then change this to "${PORT:-5050}:${PORT:-5050}". See SECURITY.md.
       - "127.0.0.1:${PORT:-5050}:${PORT:-5050}"
-    # Hardware (GPU) video encoding — see the "Hardware acceleration" section in
-    # the README. The stock image's HandBrake has only CPU encoders; these become
-    # useful with a HandBrake build that includes NVENC/QSV. Uncomment to pass the
-    # GPU through:
+    # Hardware video encoding — see the "Hardware acceleration" section in the
+    # README. The linux/amd64 image includes Intel QSV. Uncomment to pass /dev/dri
+    # through on a Linux host with a supported Intel GPU:
     #
-    # Intel/AMD (QSV / VAAPI):
+    # Intel QSV (linux/amd64):
     # devices:
     #   - /dev/dri:/dev/dri
     #

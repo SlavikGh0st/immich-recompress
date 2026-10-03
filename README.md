@@ -146,12 +146,13 @@ the CPU; software encoders compress best and expose a **CPU cores** slider
 | Platform | Hardware encoder | How to enable |
 | -------- | ---------------- | ------------- |
 | macOS | Apple VideoToolbox | Works out of the box. |
-| Linux + Intel/AMD | QSV / VAAPI | Pass `/dev/dri` (below) + a HandBrake build with QSV/VAAPI. |
+| Linux + Intel (amd64) | QSV | The image includes QSV. Pass `/dev/dri` (below); the host must expose a working Intel GPU driver. |
+| Linux + AMD | VAAPI | Requires a HandBrake build with VAAPI; this image does not enable it. |
 | Linux + NVIDIA | NVENC | [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) + GPU reservation (below) + a HandBrake build with NVENC. |
 
-> **Docker:** the stock image's Debian `handbrake-cli` has **no** GPU encoders, so
-> only CPU encoders appear. NVENC/QSV need a HandBrake build that includes them.
-> The passthrough wiring below (and in `docker-compose.yml`) is ready for one.
+> **Docker:** the `linux/amd64` image includes Intel QSV encoding. Pass `/dev/dri`
+> into the container to use it. ARM64 images and other GPU encoders do not include
+> hardware encoding support by default.
 
 ```yaml
 services:

@@ -26,6 +26,7 @@ RUN pnpm run build
 # Stage 2 — build current HandBrake CLI with metadata passthrough
 # --------------------------------------------------------------------------- #
 FROM python:3.12-slim AS handbrake-build
+ARG TARGETARCH
 
 ARG HANDBRAKE_VERSION=1.11.2
 ARG HANDBRAKE_SHA256=12b046350f2422dc28783ff94229aff4ba5fe5e683431e057355d36163b2593a
@@ -42,13 +43,20 @@ RUN apt-get update \
         libtool libtool-bin libturbojpeg0-dev libvorbis-dev \
         libvpx-dev libx264-dev libxml2-dev m4 make meson nasm ninja-build patch pkg-config \
         python3 tar zlib1g-dev \
+    && if [ "${TARGETARCH}" = "amd64" ]; then \
+        apt-get install -y --no-install-recommends libdrm-dev libva-dev; \
+    fi \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/handbrake-src
 RUN curl -fsSLO "https://github.com/HandBrake/HandBrake/releases/download/${HANDBRAKE_VERSION}/HandBrake-${HANDBRAKE_VERSION}-source.tar.bz2" \
     && echo "${HANDBRAKE_SHA256}  HandBrake-${HANDBRAKE_VERSION}-source.tar.bz2" | sha256sum -c - \
     && tar -xjf "HandBrake-${HANDBRAKE_VERSION}-source.tar.bz2" --strip-components=1 \
-    && ./configure --disable-gtk --launch-jobs="${HANDBRAKE_BUILD_JOBS}" \
+    && if [ "${TARGETARCH}" = "amd64" ]; then \
+        ./configure --disable-gtk --enable-qsv --launch-jobs="${HANDBRAKE_BUILD_JOBS}"; \
+    else \
+        ./configure --disable-gtk --launch-jobs="${HANDBRAKE_BUILD_JOBS}"; \
+    fi \
     && make --directory=build --jobs="${HANDBRAKE_BUILD_JOBS}" \
     && make --directory=build install
 
@@ -57,6 +65,7 @@ RUN curl -fsSLO "https://github.com/HandBrake/HandBrake/releases/download/${HAND
 # Stage 3 — Python runtime with media tooling
 # --------------------------------------------------------------------------- #
 FROM python:3.12-slim AS runtime
+ARG TARGETARCH
 
 # ffmpeg/ffprobe (photo recompression + codec probing) and timezone data.
 # HandBrakeCLI is built from the pinned upstream release above because distro
@@ -69,6 +78,10 @@ RUN apt-get update \
         libjansson4 \
         libturbojpeg0 \
         tzdata \
+    && if [ "${TARGETARCH}" = "amd64" ]; then \
+        apt-get install -y --no-install-recommends \
+            intel-media-va-driver libdrm2 libva-drm2 libva2 libvpl2; \
+    fi \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

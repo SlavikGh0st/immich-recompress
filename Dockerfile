@@ -66,6 +66,7 @@ FROM python:3.12-slim AS runtime
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ffmpeg \
+        libjansson4 \
         tzdata \
     && rm -rf /var/lib/apt/lists/*
 

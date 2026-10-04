@@ -208,7 +208,22 @@ def build_handbrake_cmd(src, out, encoder, quality, preset, resolution="original
     return cmd
 
 
-def build_ffmpeg_vaapi_cmd(src, out, quality, resolution="original"):
+def _iso6709_location(metadata):
+    """Format Immich GPS coordinates as a QuickTime ISO 6709 location tag."""
+    if not metadata:
+        return None
+    try:
+        latitude = float(metadata.get("latitude"))
+        longitude = float(metadata.get("longitude"))
+    except (TypeError, ValueError):
+        return None
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        return None
+    return f"{latitude:+09.5f}{longitude:+010.5f}/"
+
+
+def build_ffmpeg_vaapi_cmd(src, out, quality, resolution="original",
+                           metadata=None):
     """Build an FFmpeg command to encode HEVC through VAAPI."""
     filters = []
     edge = RESOLUTION_LONG_EDGE.get(str(resolution))
@@ -220,7 +235,7 @@ def build_ffmpeg_vaapi_cmd(src, out, quality, resolution="original"):
             "force_original_aspect_ratio=decrease:force_divisible_by=2"
         )
     filters.extend(("format=nv12", "hwupload"))
-    return [
+    cmd = [
         "ffmpeg", "-hide_banner", "-y",
         "-vaapi_device", sorted(glob.glob("/dev/dri/renderD*"))[0],
         "-i", src,
@@ -228,16 +243,23 @@ def build_ffmpeg_vaapi_cmd(src, out, quality, resolution="original"):
         "-map_metadata", "0", "-map_chapters", "0",
         "-vf", ",".join(filters),
         "-c:v", "hevc_vaapi", "-qp", str(quality),
-        "-c:a", "copy", "-movflags", "+faststart", out,
+        "-c:a", "copy", "-movflags", "+faststart",
     ]
+    location = _iso6709_location(metadata)
+    if location:
+        cmd += ["-metadata", f"location={location}",
+                "-metadata", f"location-eng={location}"]
+    cmd.append(out)
+    return cmd
 
 
 def build_video_encoder_cmd(src, out, encoder, quality, preset,
-                            resolution="original", threads=None):
+                            resolution="original", threads=None,
+                            metadata=None):
     """Build the command for a selected video encoder/backend."""
     spec = encoder_spec(encoder)
     if spec.get("ffmpeg_encoder") == "hevc_vaapi" and ffmpeg_vaapi_available():
-        return build_ffmpeg_vaapi_cmd(src, out, quality, resolution)
+        return build_ffmpeg_vaapi_cmd(src, out, quality, resolution, metadata)
     return build_handbrake_cmd(src, out, encoder, quality, preset, resolution, threads)
 
 

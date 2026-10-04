@@ -900,12 +900,14 @@ def process_motionphoto_job(env, asset_id, params):
             backup_path = None
 
         _, src_duration = ffprobe_info(src_path)
+        metadata = get_asset_meta(env, video_id)
         update_job(asset_id, status="encoding", progress=0.0, log="Compressing motion video")
         emit_job_update(asset_id)
         cmd = build_video_encoder_cmd(
             src_path, out_path, params.get("encoder", "x265"),
             params.get("quality", 24), params.get("preset", "medium"),
             params.get("resolution", "original"), params.get("threads"),
+            metadata,
         )
         ok = run_video_encoder(cmd, asset_id, src_duration)
         if not ok or not os.path.isfile(out_path):
@@ -1079,10 +1081,12 @@ def process_job(asset_id):
     update_job(asset_id, status="encoding", progress=0.0, log="Encoding")
     emit_job_update(asset_id)
 
+    metadata = get_asset_meta(env, asset_id)
     cmd = build_video_encoder_cmd(
         src_path, out_path, params.get("encoder", "x265"),
         params.get("quality", 24), params.get("preset", "medium"),
         params.get("resolution", "original"), params.get("threads"),
+        metadata,
     )
     ok = run_video_encoder(cmd, asset_id, src_duration)
     if not ok or not os.path.isfile(out_path):

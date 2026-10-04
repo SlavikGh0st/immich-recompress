@@ -207,15 +207,18 @@ def download_original(env, asset_id, dest):
 
 
 def get_asset_meta(env, asset_id):
-    """Fetch an asset's capture/modify dates so a new upload keeps its place in
-    the timeline (these are NOT copied by copyAsset). Best-effort."""
+    """Fetch capture dates and GPS coordinates from Immich. Best-effort."""
     try:
         r = requests.get(f"{env['url']}/api/assets/{asset_id}",
                          headers=immich_headers(env), timeout=HTTP_TIMEOUT)
         if r.status_code == 200:
             a = r.json()
+            exif = a.get("exifInfo") or {}
             return {"fileCreatedAt": a.get("fileCreatedAt"),
-                    "fileModifiedAt": a.get("fileModifiedAt")}
+                    "fileModifiedAt": a.get("fileModifiedAt"),
+                    "latitude": exif.get("latitude"),
+                    "longitude": exif.get("longitude"),
+                    "altitude": exif.get("altitude")}
     except (requests.RequestException, ValueError):
         pass
     return {}
